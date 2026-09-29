@@ -1,1 +1,51 @@
+name: Cyprus Supermarket Auto Scraper
+
+on:
+  schedule:
+    # ⏱️ Εκτέλεση 3 φορές τη μέρα (Κάθε 8 ώρες: 00:00, 08:00, 16:00 UTC)
+    - cron: '0 */8 * * *'
+  workflow_dispatch: # Σας επιτρέπει να το τρέχετε και χειροκίνητα για δοκιμή
+
+jobs:
+  scrape_and_inject:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Scrape Lidl and Inject to Cloudflare
+      run: |
+        CONTENT=$(curl -sL "https://lidl.com.cy" | tr -d '\n\r' | jq -sR .)
+        curl -X POST "https://workers.dev" \
+          -H "Content-Type: application/json" \
+          -d "{\"supermarket_name\": \"Lidl\", \"content\": $CONTENT}"
+
+    - name: Scrape Sklavenitis and Inject to Cloudflare
+      run: |
+        CONTENT=$(curl -sL "https://www.sklavenitis.cy" | tr -d '\n\r' | jq -sR .)
+        curl -X POST "https://workers.dev" \
+          -H "Content-Type: application/json" \
+          -d "{\"supermarket_name\": \"Sklavenitis\", \"content\": $CONTENT}"
+
+    - name: Scrape Metro and Inject to Cloudflare
+      run: |
+        CONTENT=$(curl -sL "https://metro.com.cy" | tr -d '\n\r' | jq -sR .)
+        curl -X POST "https://workers.dev" \
+          -H "Content-Type: application/json" \
+          -d "{\"supermarket_name\": \"Metro\", \"content\": $CONTENT}"
+
+    - name: Scrape MAS and Inject to Cloudflare
+      run: |
+        CONTENT=$(curl -sL "https://mas.com.cy" | tr -d '\n\r' | jq -sR .)
+        curl -X POST "https://workers.dev" \
+          -H "Content-Type: application/json" \
+          -d "{\"supermarket_name\": \"MAS\", \"content\": $CONTENT}"
+
+    - name: Scrape Alphamega and Inject to Cloudflare
+      run: |
+        CONTENT=$(curl -sL "https://alphamega.com.cy" | tr -d '\n\r' | jq -sR .)
+        curl -X POST "https://workers.dev" \
+          -H "Content-Type: application/json" \
+          -d "{\"supermarket_name\": \"Alphamega\", \"content\": $CONTENT}"
 
