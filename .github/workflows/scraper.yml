@@ -16,34 +16,39 @@ jobs:
     - name: Scrape Lidl and Inject
       run: |
         curl -sL "https://lidl.com.cy" > lidl.html
+        jq -aRs '{supermarket_name: "Lidl", content: .}' lidl.html > payload.json
         curl -X POST "https://workers.dev" \
           -H "Content-Type: application/json" \
-          --data-binary "{\"supermarket_name\": \"Lidl\", \"content\": $(jq -aRs . lidl.html)}"
+          -d @payload.json
 
     - name: Scrape Sklavenitis and Inject
       run: |
         curl -sL "https://www.sklavenitis.cy" > sklavenitis.html
+        jq -aRs '{supermarket_name: "Sklavenitis", content: .}' sklavenitis.html > payload.json
         curl -X POST "https://workers.dev" \
           -H "Content-Type: application/json" \
-          --data-binary "{\"supermarket_name\": \"Sklavenitis\", \"content\": $(jq -aRs . sklavenitis.html)}"
+          -d @payload.json
 
     - name: Scrape Metro and Inject
       run: |
         curl -sL "https://metro.com.cy" > metro.html
+        jq -aRs '{supermarket_name: "Metro", content: .}' metro.html > payload.json
         curl -X POST "https://workers.dev" \
           -H "Content-Type: application/json" \
-          --data-binary "{\"supermarket_name\": \"Metro\", \"content\": $(jq -aRs . metro.html)}"
+          -d @payload.json
 
     - name: Scrape MAS and Inject
       run: |
         curl -sL "https://mas.com.cy" > mas.html
+        jq -aRs '{supermarket_name: "MAS", content: .}' mas.html > payload.json
         curl -X POST "https://workers.dev" \
           -H "Content-Type: application/json" \
-          --data-binary "{\"supermarket_name\": \"MAS\", \"content\": $(jq -aRs . mas.html)}"
+          -d @payload.json
 
     - name: Scrape Alphamega and Inject
       run: |
         curl -sL "https://alphamega.com.cy" > alphamega.html
+        jq -aRs '{supermarket_name: "Alphamega", content: .}' alphamega.html > payload.json
         curl -X POST "https://workers.dev" \
           -H "Content-Type: application/json" \
-          --data-binary "{\"supermarket_name\": \"Alphamega\", \"content\": $(jq -aRs . alphamega.html)}"
+          -d @payload.json
