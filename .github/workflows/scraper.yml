@@ -13,48 +13,85 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    # 🛒 LIDL PIPELINE
-    - name: Scrape Lidl and Inject
-      continue-on-error: true
-      run: |
-        curl -sL --connect-timeout 30 --retry 3 "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%://lidl.com.cy%2Fel%2Fprosfores%2Fevdomadiaies-prosfores&antibot=true" > raw.html
-        # 🔧 Καθαρισμός HTML tags στην πηγή για μείωση μεγέθους κατά 99%
-        sed -e 's/<script[^>]*>[\s\S]*?<\/script>//gi' -e 's/<style[^>]*>[\s\S]*?<\/style>//gi' -e 's/<[^>]*>/ /g' raw.html | tr -s ' ' > clean.txt
-        jq -aRs '{supermarket_name: "Lidl", content: .}' clean.txt > payload.json
-        curl -X POST "https://workers.dev" -H "Content-Type: application/json" -d @payload.json
+    - name: Setup Node.js Runtime Environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
 
-    # 🛒 ΣΚΛΑΒΕΝΙΤΗΣ PIPELINE
-    - name: Scrape Sklavenitis and Inject
-      continue-on-error: true
-      run: |
-        curl -sL --connect-timeout 30 --retry 3 "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%2Fwww.sklavenitis.cy%2Fprosfores%2Fefimerida-prosforon%2F&antibot=true" > raw.html
-        sed -e 's/<script[^>]*>[\s\S]*?<\/script>//gi' -e 's/<style[^>]*>[\s\S]*?<\/style>//gi' -e 's/<[^>]*>/ /g' raw.html | tr -s ' ' > clean.txt
-        jq -aRs '{supermarket_name: "Sklavenitis", content: .}' clean.txt > payload.json
-        curl -X POST "https://workers.dev" -H "Content-Type: application/json" -d @payload.json
+    - name: Initialize Dynamic Scraping Dependencies
+      run: npm install axios
 
-    # 🛒 METRO PIPELINE
-    - name: Scrape Metro and Inject
-      continue-on-error: true
+    - name: Execute Live Multi-Source Automation Script
+      env:
+        ZENROWS_KEY: \${{ secrets.ZENROWS_KEY }}
       run: |
-        curl -sL --connect-timeout 30 --retry 3 "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%2Fmetro.com.cy%2Fel%2Fprosfores&antibot=true" > raw.html
-        sed -e 's/<script[^>]*>[\s\S]*?<\/script>//gi' -e 's/<style[^>]*>[\s\S]*?<\/style>//gi' -e 's/<[^>]*>/ /g' raw.html | tr -s ' ' > clean.txt
-        jq -aRs '{supermarket_name: "Metro", content: .}' clean.txt > payload.json
-        curl -X POST "https://workers.dev" -H "Content-Type: application/json" -d @payload.json
+        cat << 'EOF' > run-scraper.js
+        const axios = require('axios');
 
-    # 🛒 ΜΑΣ PIPELINE
-    - name: Scrape MAS and Inject
-      continue-on-error: true
-      run: |
-        curl -sL --connect-timeout 30 --retry 3 "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%://mas.com.cy%2Fel%2Fprosfores&antibot=true" > raw.html
-        sed -e 's/<script[^>]*>[\s\S]*?<\/script>//gi' -e 's/<style[^>]*>[\s\S]*?<\/style>//gi' -e 's/<[^>]*>/ /g' raw.html | tr -s ' ' > clean.txt
-        jq -aRs '{supermarket_name: "MAS", content: .}' clean.txt > payload.json
-        curl -X POST "https://workers.dev" -H "Content-Type: application/json" -d @payload.json
+        const targets = [
+          { name: "Lidl", url: "https://lidl.com.cy" },
+          { name: "Sklavenitis", url: "https://www.sklavenitis.cy" },
+          { name: "Metro", url: "https://metro.com.cy" },
+          { name: "MAS", url: "https://mas.com.cy" },
+          { name: "Alphamega", url: "https://alphamega.com.cy" }
+        ];
 
-    # 🛒 ΑΛΦΑΜΕΓΑ PIPELINE
-    - name: Scrape Alphamega and Inject
-      continue-on-error: true
-      run: |
-        curl -sL --connect-timeout 30 --retry 3 "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%://alphamega.com.cy%2Fprosfores&antibot=true" > raw.html
-        sed -e 's/<script[^>]*>[\s\S]*?<\/script>//gi' -e 's/<style[^>]*>[\s\S]*?<\/style>//gi' -e 's/<[^>]*>/ /g' raw.html | tr -s ' ' > clean.txt
-        jq -aRs '{supermarket_name: "Alphamega", content: .}' clean.txt > payload.json
-        curl -X POST "https://workers.dev" -H "Content-Type: application/json" -d @payload.json
+        async function processPipeline() {
+          const apiKey = process.env.ZENROWS_KEY;
+          if (!apiKey) {
+            console.error("❌ Missing structural validation secret token parameter: ZENROWS_KEY");
+            return;
+          }
+
+          for (const target of targets) {
+            console.log(`🤖 Requesting active proxy connection layout for target: ${target.name}...`);
+            try {
+              // Connect securely via ZenRows parameters framework bypass channel
+              const response = await axios.get('https://zenrows.com', {
+                params: {
+                  'apikey': apiKey,
+                  'url': target.url,
+                  'antibot': 'true'
+                },
+                timeout: 45000
+              });
+
+              if (!response.data) {
+                console.warn(`⚠️ Target destination ${target.name} returned an empty data object wrapper.`);
+                continue;
+              }
+
+              // Pure Node.js Sanitization Engine: Drops code structures entirely with zero string crashes
+              let cleanText = response.data
+                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+                .replace(/<[^>]*>/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+              if (cleanText.length > 20000) {
+                cleanText = cleanText.substring(0, 20000);
+              }
+
+              console.log(`-> Pushing compiled content stream vector (${cleanText.length} chars) to API Endpoint...`);
+              
+              const injectResponse = await axios.post('https://workers.dev', {
+                supermarket_name: target.name,
+                content: cleanText
+              }, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 30000
+              });
+
+              console.log(`✅ Server Status Result for ${target.name}:`, JSON.stringify(injectResponse.data));
+
+            } catch (error) {
+              console.error(`❌ Execution failure tracked down layer inside pipeline node for ${target.name}:`, error.message);
+            }
+          }
+        }
+
+        processPipeline();
+        EOF
+        
+        node run-scraper.js
