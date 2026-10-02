@@ -24,7 +24,7 @@ jobs:
     - name: Execute Live Multi-Source Automation Script
       env:
         ZENROWS_KEY: \${{ secrets.ZENROWS_KEY }}
-        GEMINI_KEY: \${{ secrets.GEMINI_KEY }} # 🔑 Βεβαιωθείτε ότι έχετε βάλει το GEMINI_KEY στα GitHub Secrets
+        GEMINI_KEY: \${{ secrets.GEMINI_KEY }}
       run: |
         cat << 'EOF' > run-scraper.js
         const axios = require('axios');
@@ -56,7 +56,6 @@ jobs:
 
               if (!response.data) continue;
 
-              // Καθαρισμός HTML tags
               let cleanText = response.data
                 .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
                 .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
@@ -75,24 +74,31 @@ jobs:
                 contents: [{ parts: [{ text: `Analyze this Cyprus retail promotion text dataset for the brand location: ${target.name}. Extract existing items, categories, and prices. Output ONLY a clean raw JSON array data structural model format where every single child component item possesses these explicit object mapping keys: category, name, price, is_offer (1), is_leaflet (1 or 0), start_date (format template YYYY-MM-DD), end_date (format template YYYY-MM-DD). SYSTEM INSTRUCTION: If an active product item does not state an explicit promotion expiry target validation date window parameter within the text limits, you must explicitly set the end_date attribute value to null. Raw Text Data Block: ${cleanText}` }] }]
               }, { timeout: 60000 });
 
-              let rawText = geminiRes.data.candidates[0].content.parts[0].text.trim();
-              
-              if (rawText.startsWith("```json")) rawText = rawText.replace(/```json|```/g, "").trim();
-              else if (rawText.startsWith("```")) rawText = rawText.replace(/```/g, "").trim();
+              // 🔧 ΔΙΟΡΘΩΣΗ: Προσθήκη [0] για σωστή ανάγνωση του πρώτου candidate από το Array
+              if (geminiRes.data && geminiRes.data.candidates && geminiRes.data.candidates[0]) {
+                let rawText = geminiRes.data.candidates[0].content.parts[0].text.trim();
+                
+                if (rawText.startsWith("```json")) rawText = rawText.replace(/```json|```/g, "").trim();
+                else if (rawText.startsWith("```")) rawText = rawText.replace(/```/g, "").trim();
 
-              const parsedProducts = JSON.parse(rawText);
-              console.log(`-> Βρέθηκαν ${parsedProducts.length} προϊόντα. Αποστολή στον Worker...`);
+                const parsedProducts = JSON.parse(rawText);
+                console.log(`-> 📈 Βρέθηκαν ${parsedProducts.length} live προϊόντα για το κατάστημα ${target.name}. Αποστολή στον Worker...`);
 
-              // Στέλνουμε το έτοιμο JSON array στον Worker ακαριαία
-              const injectResponse = await axios.post('https://workers.dev', {
-                supermarket_name: target.name,
-                products: parsedProducts
-              }, { timeout: 30000 });
+                const injectResponse = await axios.post('https://workers.dev', {
+                  supermarket_name: target.name,
+                  products: parsedProducts
+                }, { timeout: 30000 });
 
-              console.log(`✅ Η βάση δεδομένων D1 ενημερώθηκε για ${target.name}:`, JSON.stringify(injectResponse.data));
+                console.log(`✅ Η βάση δεδομένων D1 ενημερώθηκε επιτυχώς για ${target.name}:`, JSON.stringify(injectResponse.data));
+              } else {
+                console.error(`❌ Άκυρη απάντηση από το Gemini API για την υπεραγορά ${target.name}`);
+              }
 
             } catch (error) {
               console.error(`❌ Σφάλμα στην υπεραγορά ${target.name}:`, error.message);
+              if (error.response) {
+                console.error("Λεπτομέρειες σφάλματος API:", JSON.stringify(error.response.data));
+              }
             }
           }
         }
