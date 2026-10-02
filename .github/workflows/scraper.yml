@@ -48,4 +48,3 @@ jobs:
         curl -X POST "https://workers.dev" \
           -H "Content-Type: application/json" \
           -d "{\"supermarket_name\": \"Alphamega\", \"content\": $CONTENT}"
-
