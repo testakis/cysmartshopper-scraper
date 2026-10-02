@@ -13,52 +13,62 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Scrape Lidl and Inject (ZenRows Bypass)
+    # 🛒 ΥΠΕΡΑΓΟΡΑ 1: LIDL
+    - name: Scrape Lidl and Inject
+      continue-on-error: true
       run: |
         curl -sL --connect-timeout 30 --retry 3 "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%://lidl.com.cy%2Fel%2Fprosfores%2Fevdomadiaies-prosfores&antibot=true" > lidl.html
-        if [ -s lidl.html ]; then
+        if [ -s lidl.html ] && ! grep -q "error" lidl.html; then
           jq -aRs '{supermarket_name: "Lidl", content: .}' lidl.html > payload.json
-          curl -X POST "https://workers.dev" \
-            -H "Content-Type: application/json" \
-            -d @payload.json
+          curl -X POST "https://workers.dev" -H "Content-Type: application/json" -d @payload.json
+        else
+          echo "⚠️ Lidl content empty or restricted. Skipping injection."
         fi
 
-    - name: Scrape Sklavenitis and Inject (ZenRows Bypass)
+    # 🛒 ΥΠΕΡΑΓΟΡΑ 2: ΣΚΛΑΒΕΝΙΤΗΣ
+    - name: Scrape Sklavenitis and Inject
+      continue-on-error: true
       run: |
         curl -sL --connect-timeout 30 --retry 3 "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%2Fwww.sklavenitis.cy%2Fprosfores%2Fefimerida-prosforon%2F&antibot=true" > sklavenitis.html
-        if [ -s sklavenitis.html ]; then
+        if [ -s sklavenitis.html ] && ! grep -q "error" sklavenitis.html; then
           jq -aRs '{supermarket_name: "Sklavenitis", content: .}' sklavenitis.html > payload.json
-          curl -X POST "https://workers.dev" \
-            -H "Content-Type: application/json" \
-            -d @payload.json
+          curl -X POST "https://workers.dev" -H "Content-Type: application/json" -d @payload.json
+        else
+          echo "⚠️ Sklavenitis content empty or restricted. Skipping injection."
         fi
 
-    - name: Scrape Metro and Inject (ZenRows Bypass)
+    # 🛒 ΥΠΕΡΑΓΟΡΑ 3: METRO
+    - name: Scrape Metro and Inject
+      continue-on-error: true
       run: |
         curl -sL --connect-timeout 30 --retry 3 "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%2Fmetro.com.cy%2Fel%2Fprosfores&antibot=true" > metro.html
-        if [ -s metro.html ]; then
+        if [ -s metro.html ] && ! grep -q "error" metro.html; then
           jq -aRs '{supermarket_name: "Metro", content: .}' metro.html > payload.json
-          curl -X POST "https://workers.dev" \
-            -H "Content-Type: application/json" \
-            -d @payload.json
+          curl -X POST "https://workers.dev" -H "Content-Type: application/json" -d @payload.json
+        else
+          echo "⚠️ Metro content empty or restricted. Skipping injection."
         fi
 
-    - name: Scrape MAS and Inject (ZenRows Bypass)
+    # 🛒 ΥΠΕΡΑΓΟΡΑ 4: ΜΑΣ
+    - name: Scrape MAS and Inject
+      continue-on-error: true
       run: |
         curl -sL --connect-timeout 30 --retry 3 "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%://mas.com.cy%2Fel%2Fprosfores&antibot=true" > mas.html
-        if [ -s mas.html ]; then
+        if [ -s mas.html ] && ! grep -q "error" mas.html; then
           jq -aRs '{supermarket_name: "MAS", content: .}' mas.html > payload.json
-          curl -X POST "https://workers.dev" \
-            -H "Content-Type: application/json" \
-            -d @payload.json
+          curl -X POST "https://workers.dev" -H "Content-Type: application/json" -d @payload.json
+        else
+          echo "⚠️ MAS content empty or restricted. Skipping injection."
         fi
 
-    - name: Scrape Alphamega and Inject (ZenRows Bypass)
+    # 🛒 ΥΠΕΡΑΓΟΡΑ 5: ΑΛΦΑΜΕΓΑ
+    - name: Scrape Alphamega and Inject
+      continue-on-error: true
       run: |
         curl -sL --connect-timeout 30 --retry 3 "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%://alphamega.com.cy%2Fprosfores&antibot=true" > alphamega.html
-        if [ -s alphamega.html ]; then
+        if [ -s alphamega.html ] && ! grep -q "error" alphamega.html; then
           jq -aRs '{supermarket_name: "Alphamega", content: .}' alphamega.html > payload.json
-          curl -X POST "https://workers.dev" \
-            -H "Content-Type: application/json" \
-            -d @payload.json
+          curl -X POST "https://workers.dev" -H "Content-Type: application/json" -d @payload.json
+        else
+          echo "⚠️ Alphamega content empty or restricted. Skipping injection."
         fi
