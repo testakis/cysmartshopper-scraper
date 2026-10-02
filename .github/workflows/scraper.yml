@@ -2,8 +2,9 @@ name: Cyprus Supermarket Auto Scraper
 
 on:
   schedule:
+    # ⏱️ Αυτόματη εκτέλεση 3 φορές τη μέρα (Κάθε 8 ώρες: 00:00, 08:00, 16:00 UTC)
     - cron: '0 */8 * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Σας επιτρέπει να το τρέχετε χειροκίνητα ανά πάσα στιγμή
 
 jobs:
   scrape_and_inject:
@@ -13,41 +14,41 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Scrape Lidl and Inject
+    - name: Scrape Lidl and Inject (ZenRows Bypass)
       run: |
-        curl -sL "https://lidl.com.cy" > lidl.html
+        curl -sL "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%://lidl.com.cy%2Fel%2Fprosfores%2Fevdomadiaies-prosfores&antibot=true" > lidl.html
         jq -aRs '{supermarket_name: "Lidl", content: .}' lidl.html > payload.json
         curl -X POST "https://workers.dev" \
           -H "Content-Type: application/json" \
           -d @payload.json
 
-    - name: Scrape Sklavenitis and Inject
+    - name: Scrape Sklavenitis and Inject (ZenRows Bypass)
       run: |
-        curl -sL "https://www.sklavenitis.cy" > sklavenitis.html
+        curl -sL "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%2Fwww.sklavenitis.cy%2Fprosfores%2Fefimerida-prosforon%2F&antibot=true" > sklavenitis.html
         jq -aRs '{supermarket_name: "Sklavenitis", content: .}' sklavenitis.html > payload.json
         curl -X POST "https://workers.dev" \
           -H "Content-Type: application/json" \
           -d @payload.json
 
-    - name: Scrape Metro and Inject
+    - name: Scrape Metro and Inject (ZenRows Bypass)
       run: |
-        curl -sL "https://metro.com.cy" > metro.html
+        curl -sL "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%2Fmetro.com.cy%2Fel%2Fprosfores&antibot=true" > metro.html
         jq -aRs '{supermarket_name: "Metro", content: .}' metro.html > payload.json
         curl -X POST "https://workers.dev" \
           -H "Content-Type: application/json" \
           -d @payload.json
 
-    - name: Scrape MAS and Inject
+    - name: Scrape MAS and Inject (ZenRows Bypass)
       run: |
-        curl -sL "https://mas.com.cy" > mas.html
+        curl -sL "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%://mas.com.cy%2Fel%2Fprosfores&antibot=true" > mas.html
         jq -aRs '{supermarket_name: "MAS", content: .}' mas.html > payload.json
         curl -X POST "https://workers.dev" \
           -H "Content-Type: application/json" \
           -d @payload.json
 
-    - name: Scrape Alphamega and Inject
+    - name: Scrape Alphamega and Inject (ZenRows Bypass)
       run: |
-        curl -sL "https://alphamega.com.cy" > alphamega.html
+        curl -sL "https://zenrows.com{{ secrets.ZENROWS_KEY }}&url=https%3A%2F%://alphamega.com.cy%2Fprosfores&antibot=true" > alphamega.html
         jq -aRs '{supermarket_name: "Alphamega", content: .}' alphamega.html > payload.json
         curl -X POST "https://workers.dev" \
           -H "Content-Type: application/json" \
