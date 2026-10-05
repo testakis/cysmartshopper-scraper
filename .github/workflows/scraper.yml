@@ -2,8 +2,8 @@ name: Cyprus Supermarket Auto Browser Scraper
 
 on:
   schedule:
-    - cron: '0 */8 * * *' # ⏱️ Automatically runs every 8 hours (3 times a day)
-  workflow_dispatch:     # Allows you to trigger it manually anytime
+    - cron: '0 */8 * * *'
+  workflow_dispatch:
 
 jobs:
   automated_browser_scrape:
@@ -19,9 +19,12 @@ jobs:
         node-version: 20
 
     - name: Install Cloud Browser Automation Tools
-      run: npm install puppeteer axios
+      run: |
+        npm install puppeteer axios
+        # 🔧 Η ΔΙΟΡΘΩΣΗ: Εγκατάσταση του Chrome Browser στον server του GitHub
+        npx puppeteer browsers install chrome
 
-    - name: Execute Live Market Extraction Script
+    - name: Execute Live Multi-Source Automation Script
       env:
         GEMINI_KEY: \${{ secrets.GEMINI_KEY }}
       run: |
@@ -44,9 +47,8 @@ jobs:
             return;
           }
 
-          // Launch an invisible real Chromium Browser in the cloud
           const browser = await puppeteer.launch({ 
-            headless: "new",
+            headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox']
           });
 
@@ -55,14 +57,11 @@ jobs:
             const page = await browser.newPage();
             
             try {
-              // Mimic a human consumer browsing on a standard desktop computer
               await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
               await page.setViewport({ width: 1280, height: 800 });
               
-              // Navigate to the supermarket offers page and wait for it to load fully
               await page.goto(target.url, { waitUntil: 'networkidle2', timeout: 60000 });
 
-              // Extract the clean human-readable visible text from the webpage body
               const visibleText = await page.evaluate(() => document.body.innerText);
 
               let cleanText = visibleText.replace(/\s+/g, ' ').trim();
@@ -70,8 +69,8 @@ jobs:
                 cleanText = cleanText.substring(0, 25000);
               }
 
-              if (cleanText.length < 200 || cleanText.includes("error code:")) {
-                console.warn(`⚠️ Cloudflare blocked browser for ${target.name}. Skipping target node.`);
+              if (cleanText.length < 200) {
+                console.warn(`⚠️ Empty content text for ${target.name}. Skipping target node.`);
                 await page.close();
                 continue;
               }
@@ -80,10 +79,9 @@ jobs:
               const geminiEndpoint = `https://googleapis.com{geminiKey}`;
               
               const geminiRes = await axios.post(geminiEndpoint, {
-                contents: [{ parts: [{ text: `Analyze this Cyprus retail promotion text dataset for the brand location: ${target.name}. Extract existing items, categories, and prices. Output ONLY a clean raw JSON array data structural model format where every single child component item possesses these explicit object mapping keys: category, name, price, is_offer (1), is_leaflet (1 or 0), start_date (format template YYYY-MM-DD), end_date (format template YYYY-MM-DD). SYSTEM INSTRUCTION: If an active product item does not state an explicit promotion expiry target validation date window parameter within the text limits, you must explicitly set the end_date attribute value to null. Raw Text Data Block: ${cleanText}` }] }]
+                contents: [{ parts: [{ text: `Analyze this Cyprus retail promotion text dataset for the brand location: ${target.name}. Extract existing items, categories, and prices. Output ONLY a clean raw JSON array data structural model format where every single child component item possesses these explicit object mapping keys: category, name, price, is_offer (1), is_leaflet (1 if from brochure, 0 otherwise), start_date (format template YYYY-MM-DD), end_date (format template YYYY-MM-DD). SYSTEM INSTRUCTION: If an active product item does not state an explicit promotion expiry target validation date window parameter within the text limits, you must explicitly set the end_date attribute value to null. Raw Text Data Block: ${cleanText}` }] }]
               }, { timeout: 45000 });
 
-              // Universal Deep Object Safe Check Parsing for Gemini Array formats
               let rawText = null;
               if (geminiRes.data && geminiRes.data.candidates && geminiRes.data.candidates.length > 0) {
                 const firstCandidate = geminiRes.data.candidates[0];
@@ -104,7 +102,6 @@ jobs:
               const parsedProducts = JSON.parse(rawText);
               console.log(`🚀 Found ${parsedProducts.length} live active items. Transmitting data block to Cloudflare...`);
 
-              // Post the cleaned, parsed data instantly straight to your worker database
               const injectResponse = await axios.post('https://workers.dev', {
                 supermarket_name: target.name,
                 products: parsedProducts
