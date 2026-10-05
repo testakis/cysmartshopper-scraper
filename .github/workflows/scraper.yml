@@ -2,8 +2,8 @@ name: Cyprus Supermarket Auto Text Scraper
 
 on:
   schedule:
-    - cron: '0 */8 * * *' # Automatically fires every 8 hours
-  workflow_dispatch:     # Allows manual trigger testing anytime
+    - cron: '0 */8 * * *' # Αυτόματη εκτέλεση 3 φορές τη μέρα
+  workflow_dispatch:     # Σας επιτρέπει να το τρέχετε χειροκίνητα
 
 jobs:
   automated_text_scrape:
@@ -39,15 +39,14 @@ jobs:
         async function runAggregator() {
           const geminiKey = process.env.GEMINI_KEY;
           if (!geminiKey) {
-            console.error("❌ Critical Validation Error: Missing GEMINI_KEY in GitHub Secrets.");
+            console.error("❌ Λείπει το GEMINI_KEY από τα GitHub Secrets.");
             return;
           }
 
           for (const target of targets) {
-            console.log(`\n🤖 Processing data pipeline for: ${target.name}...`);
+            console.log(`🤖 Ανάγνωση δεδομένων για την υπεραγορά: ${target.name}...`);
             
             try {
-              // Fetch clean target content text using the direct AllOrigins proxy routing layer
               const proxyUrl = `https://allorigins.win{encodeURIComponent(target.url)}`;
               const response = await axios.get(proxyUrl, {
                 headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
@@ -55,64 +54,30 @@ jobs:
               });
 
               if (!response.data || typeof response.data !== 'string') {
-                console.warn(`⚠️ Target ${target.name} returned an unparseable response payload format.`);
+                console.warn(`⚠️ Άδεια απάντηση για ${target.name}`);
                 continue;
               }
 
-              // Strip HTML components to minimize token usage parameters
-              let cleanText = response.data
-                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-                .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-                .replace(/<[^>]*>/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
+              // 🔧 ΚΑΘΑΡΙΣΜΟΣ & ΜΕΤΑΤΡΟΠΗ ΣΕ BASE64 (Λύνει το πρόβλημα με τα ελληνικά και το €)
+              const base64Content = Buffer.from(response.data).toString('base64');
 
-              if (cleanText.length > 23000) {
-                cleanText = cleanText.substring(0, 23000);
-              }
-
-              console.log(`🧠 Compiling plain text data through Gemini AI API for: ${target.name}...`);
-              const geminiEndpoint = `https://googleapis.com{geminiKey}`;
+              console.log(`🧠 Αποστολή κωδικοποιημένου payload στον Worker για AI επεξεργασία: ${target.name}...`);
               
-              const geminiRes = await axios.post(geminiEndpoint, {
-                contents: [{ parts: [{ text: `Analyze this Cyprus retail promotion text dataset for the brand location: ${target.name}. Extract existing items, categories, and prices. Output ONLY a clean raw JSON array data structural model format where every single child component item possesses these explicit object mapping keys: category, name, price, is_offer (1), is_leaflet (1 if from brochure, 0 otherwise), start_date (format template YYYY-MM-DD), end_date (format template YYYY-MM-DD). SYSTEM INSTRUCTION: If an active product item does not state an explicit promotion expiry target validation date window parameter within the text limits, you must explicitly set the end_date attribute value to null. Raw Text Data Block: ${cleanText}` }] }]
-              }, { timeout: 45000 });
-
-              // 🔧 FIXED DATA EXTRACTION WRAPPER: Handles response object variations safely
-              let rawText = null;
-              const resData = geminiRes.data;
-              
-              if (resData && resData.candidates && Array.isArray(resData.candidates) && resData.candidates.length > 0) {
-                const candidateObj = resData.candidates[0];
-                if (candidateObj && candidateObj.content && candidateObj.content.parts && Array.isArray(candidateObj.content.parts) && candidateObj.content.parts.length > 0) {
-                  rawText = candidateObj.content.parts[0].text ? candidateObj.content.parts[0].text.trim() : candidateObj.content.parts[0].text;
-                }
-              }
-
-              if (!rawText) {
-                console.error(`❌ Text property layer extraction missing inside payload structure returned for ${target.name}`);
-                continue;
-              }
-
-              if (rawText.startsWith("```json")) rawText = rawText.replace(/```json|```/g, "").trim();
-              else if (rawText.startsWith("```")) rawText = rawText.replace(/```/g, "").trim();
-
-              const parsedProducts = JSON.parse(rawText);
-              console.log(`🚀 Successfully parsed ${parsedProducts.length} live items for ${target.name}. Transmitting packet...`);
-
-              // Push the structured array directly down to your Cloudflare database receiver
               const injectResponse = await axios.post('https://workers.dev', {
                 supermarket_name: target.name,
-                products: parsedProducts
-              }, { timeout: 15000 });
+                base64_data: base64Content
+              }, { 
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 60000 // Δίνουμε χρόνο στον Worker να καλέσει το Gemini
+              });
 
-              console.log(`✅ Database D1 updated successfully for ${target.name}:`, JSON.stringify(injectResponse.data));
+              console.log(`✅ Απάντηση Worker για ${target.name}:`, JSON.stringify(injectResponse.data));
 
             } catch (err) {
-              console.error(`❌ Pipeline failure inside store data processing layer for ${target.name}:`, err.message);
+              console.error(`❌ Σφάλμα στην υπεραγορά ${target.name}:`, err.message);
             }
           }
-          console.log("\n🏁 All multi-source retail ingestion sequences finalized completely.");
+          console.log("🏁 Η διαδικασία ολοκληρώθηκε.");
         }
 
         runAggregator();
