@@ -1,33 +1,31 @@
-name: Cyprus Supermarket Auto Browser Scraper
+name: Cyprus Supermarket Auto Text Scraper
 
 on:
   schedule:
-    - cron: '0 */8 * * *' # ⏱️ Automatically runs every 8 hours
-  workflow_dispatch:     # Allows you to trigger it manually anytime
+    - cron: '0 */8 * * *' # Τρέχει αυτόματα κάθε 8 ώρες
+  workflow_dispatch:     # Σας επιτρέπει να το τρέχετε χειροκίνητα
 
 jobs:
-  automated_browser_scrape:
+  automated_text_scrape:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout Repository Code
       uses: actions/checkout@v4
 
-    - name: Setup Node.js Environment (Node 24)
+    - name: Setup Node.js Environment
       uses: actions/setup-node@v4
       with:
         node-version: 24
 
-    # 🔧 FIX: We install puppeteer-core (lightweight) alongside axios to use the system Chrome directly
-    - name: Install Puppeteer Core and Axios
-      run: npm install puppeteer-core axios
+    - name: Install Axios Dependency
+      run: npm install axios
 
     - name: Execute Live Multi-Source Automation Script
       env:
         GEMINI_KEY: \${{ secrets.GEMINI_KEY }}
       run: |
-        cat << 'EOF' > browser-scraper.js
-        const puppeteer = require('puppeteer-core');
+        cat << 'EOF' > text-scraper.js
         const axios = require('axios');
 
         const targets = [
@@ -41,49 +39,40 @@ jobs:
         async function runAggregator() {
           const geminiKey = process.env.GEMINI_KEY;
           if (!geminiKey) {
-            console.error("❌ Crucial configuration error: Missing GEMINI_KEY in GitHub Secrets.");
+            console.error("❌ Λείπει το GEMINI_KEY από τα GitHub Secrets.");
             return;
           }
 
-          // 🔧 REVOLUTIONARY FIX: Direct connection linking straight to Ubuntu's native Chrome location
-          const browser = await puppeteer.launch({ 
-            headless: true,
-            executablePath: '/usr/bin/google-chrome', // Official path of pre-installed Chrome on GitHub Actions
-            args: [
-              '--no-sandbox', 
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-gpu',
-              '--single-process'
-            ]
-          });
-
           for (const target of targets) {
-            console.log(`🤖 Opening native runner browser for: ${target.name}...`);
-            const page = await browser.newPage();
+            console.log(`🤖 Ανάγνωση δεδομένων για την υπεραγορά: ${target.name}...`);
             
             try {
-              await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-              await page.setViewport({ width: 1280, height: 800 });
+              // Διαβάζουμε τη σελίδα μέσω του Google Cache Text-Only Endpoint για να μην τρώμε WAF blocks
+              const cacheUrl = `https://googleusercontent.com{encodeURIComponent(target.url)}&strip=1`;
               
-              // Load the target supermarket website page safely
-              await page.goto(target.url, { waitUntil: 'networkidle2', timeout: 60000 });
+              const response = await axios.get(cacheUrl, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+                timeout: 30000
+              });
 
-              // Extract the plain text elements out of the page layout tree
-              const visibleText = await page.evaluate(() => document.body.innerText);
+              if (!response.data) {
+                console.warn(`⚠️ Άδεια απάντηση για ${target.name}`);
+                continue;
+              }
 
-              let cleanText = visibleText.replace(/\s+/g, ' ').trim();
+              // Καθαρισμός HTML κειμένου
+              let cleanText = response.data
+                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+                .replace(/<[^>]*>/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
               if (cleanText.length > 25000) {
                 cleanText = cleanText.substring(0, 25000);
               }
 
-              if (cleanText.length < 200 || cleanText.includes("error code:")) {
-                console.warn(`⚠️ Supermarket ${target.name} returned a firewall/empty frame. Skipping.`);
-                await page.close();
-                continue;
-              }
-
-              console.log(`🧠 Processing live text through Gemini AI for: ${target.name}...`);
+              console.log(`🧠 Κλήση Gemini AI για: ${target.name}...`);
               const geminiEndpoint = `https://googleapis.com{geminiKey}`;
               
               const geminiRes = await axios.post(geminiEndpoint, {
@@ -94,13 +83,12 @@ jobs:
               if (geminiRes.data && geminiRes.data.candidates && geminiRes.data.candidates.length > 0) {
                 const firstCandidate = geminiRes.data.candidates[0];
                 if (firstCandidate.content && firstCandidate.content.parts && firstCandidate.content.parts.length > 0) {
-                  rawText = firstCandidate.content.parts.text.trim();
+                  rawText = firstCandidate.content.parts[0].text.trim();
                 }
               }
 
               if (!rawText) {
-                console.error(`❌ Gemini structured response parsing failure for ${target.name}`);
-                await page.close();
+                console.error(`❌ Αποτυχία ανάλυσης από το Gemini για ${target.name}`);
                 continue;
               }
 
@@ -108,28 +96,23 @@ jobs:
               else if (rawText.startsWith("```")) rawText = rawText.replace(/```/g, "").trim();
 
               const parsedProducts = JSON.parse(rawText);
-              console.log(`🚀 Found ${parsedProducts.length} live active items. Transmitting data block to Cloudflare...`);
+              console.log(`🚀 Βρέθηκαν ${parsedProducts.length} προϊόντα. Αποστολή στον Worker...`);
 
-              // Push the clean product arrays to your Worker database
               const injectResponse = await axios.post('https://workers.dev', {
                 supermarket_name: target.name,
                 products: parsedProducts
               }, { timeout: 15000 });
 
-              console.log(`✅ Database D1 updated successfully for ${target.name}:`, JSON.stringify(injectResponse.data));
+              console.log(`✅ Η βάση δεδομένων D1 ενημερώθηκε για ${target.name}:`, JSON.stringify(injectResponse.data));
 
             } catch (err) {
-              console.error(`❌ Automation pipeline failure on store node ${target.name}:`, err.message);
-            } finally {
-              await page.close();
+              console.error(`❌ Σφάλμα στην υπεραγορά ${target.name}:`, err.message);
             }
           }
-
-          await browser.close();
-          console.log("🏁 All Cyprus supermarket pipelines processed completely.");
+          console.log("🏁 Η διαδικασία ολοκληρώθηκε για όλες τις υπεραγορές.");
         }
 
         runAggregator();
         EOF
         
-        node browser-scraper.js
+        node text-scraper.js
