@@ -53,14 +53,10 @@ jobs:
                 timeout: 30000
               });
 
-              if (!response.data || typeof response.data !== 'string') {
-                console.warn(`⚠️ Άδεια απάντηση για ${target.name}`);
-                continue;
-              }
+              if (!response.data || typeof response.data !== 'string') continue;
 
-              // 🔧 ΚΑΘΑΡΙΣΜΟΣ & ΜΕΤΑΤΡΟΠΗ ΣΕ BASE64 (Λύνει το πρόβλημα με τα ελληνικά και το €)
+              // Κωδικοποίηση σε Base64 για απόλυτα ασφαλή μεταφορά ελληνικών χαρακτήρων
               const base64Content = Buffer.from(response.data).toString('base64');
-
               console.log(`🧠 Αποστολή κωδικοποιημένου payload στον Worker για AI επεξεργασία: ${target.name}...`);
               
               const injectResponse = await axios.post('https://workers.dev', {
@@ -68,7 +64,7 @@ jobs:
                 base64_data: base64Content
               }, { 
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 60000 // Δίνουμε χρόνο στον Worker να καλέσει το Gemini
+                timeout: 60000
               });
 
               console.log(`✅ Απάντηση Worker για ${target.name}:`, JSON.stringify(injectResponse.data));
