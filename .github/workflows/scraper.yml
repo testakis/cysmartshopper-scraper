@@ -1,32 +1,32 @@
-name: Cyprus Supermarket Auto Scraper
+name: Cyprus Supermarket Auto Browser Scraper
 
 on:
   schedule:
-    - cron: '0 */8 * * *'
-  workflow_dispatch:
+    - cron: '0 */8 * * *' # ⏱️ Automatically runs every 8 hours (3 times a day)
+  workflow_dispatch:     # Allows you to trigger it manually anytime
 
 jobs:
-  scrape_and_inject:
+  automated_browser_scrape:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    - name: Checkout Repository Code
       uses: actions/checkout@v4
 
-    - name: Setup Node.js Runtime Environment
+    - name: Setup Node.js Environment
       uses: actions/setup-node@v4
       with:
         node-version: 20
 
-    - name: Initialize Automation Dependencies
-      run: npm install axios
+    - name: Install Cloud Browser Automation Tools
+      run: npm install puppeteer axios
 
-    - name: Execute Live Multi-Source Automation Script
+    - name: Execute Live Market Extraction Script
       env:
-        ZENROWS_KEY: \${{ secrets.ZENROWS_KEY }}
         GEMINI_KEY: \${{ secrets.GEMINI_KEY }}
       run: |
-        cat << 'EOF' > run-scraper.js
+        cat << 'EOF' > browser-scraper.js
+        const puppeteer = require('puppeteer');
         const axios = require('axios');
 
         const targets = [
@@ -37,73 +37,93 @@ jobs:
           { name: "Alphamega", url: "https://alphamega.com.cy" }
         ];
 
-        async function processPipeline() {
-          const zenrowsKey = process.env.ZENROWS_KEY;
+        async function runAggregator() {
           const geminiKey = process.env.GEMINI_KEY;
-          
-          if (!zenrowsKey || !geminiKey) {
-            console.error("❌ Λείπουν απαραίτητα κλειδιά ασφαλείας στα GitHub Secrets (ZENROWS_KEY ή GEMINI_KEY).");
+          if (!geminiKey) {
+            console.error("❌ Crucial configuration error: Missing GEMINI_KEY in GitHub Secrets.");
             return;
           }
 
+          // Launch an invisible real Chromium Browser in the cloud
+          const browser = await puppeteer.launch({ 
+            headless: "new",
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+          });
+
           for (const target of targets) {
-            console.log(`🤖 1. Κατέβασμα HTML μέσω ZenRows για: ${target.name}...`);
+            console.log(`🤖 Opening real cloud browser for: ${target.name}...`);
+            const page = await browser.newPage();
+            
             try {
-              const response = await axios.get('https://zenrows.com', {
-                params: { 'apikey': zenrowsKey, 'url': target.url, 'antibot': 'true' },
-                timeout: 60000
-              });
+              // Mimic a human consumer browsing on a standard desktop computer
+              await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+              await page.setViewport({ width: 1280, height: 800 });
+              
+              // Navigate to the supermarket offers page and wait for it to load fully
+              await page.goto(target.url, { waitUntil: 'networkidle2', timeout: 60000 });
 
-              if (!response.data) continue;
+              // Extract the clean human-readable visible text from the webpage body
+              const visibleText = await page.evaluate(() => document.body.innerText);
 
-              let cleanText = response.data
-                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-                .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-                .replace(/<[^>]*>/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-
+              let cleanText = visibleText.replace(/\s+/g, ' ').trim();
               if (cleanText.length > 25000) {
                 cleanText = cleanText.substring(0, 25000);
               }
 
-              console.log(`🤖 2. Κλήση Gemini AI απευθείας από το GitHub για: ${target.name}...`);
+              if (cleanText.length < 200 || cleanText.includes("error code:")) {
+                console.warn(`⚠️ Cloudflare blocked browser for ${target.name}. Skipping target node.`);
+                await page.close();
+                continue;
+              }
+
+              console.log(`🧠 Processing live content dataset through Gemini AI for: ${target.name}...`);
               const geminiEndpoint = `https://googleapis.com{geminiKey}`;
               
               const geminiRes = await axios.post(geminiEndpoint, {
                 contents: [{ parts: [{ text: `Analyze this Cyprus retail promotion text dataset for the brand location: ${target.name}. Extract existing items, categories, and prices. Output ONLY a clean raw JSON array data structural model format where every single child component item possesses these explicit object mapping keys: category, name, price, is_offer (1), is_leaflet (1 or 0), start_date (format template YYYY-MM-DD), end_date (format template YYYY-MM-DD). SYSTEM INSTRUCTION: If an active product item does not state an explicit promotion expiry target validation date window parameter within the text limits, you must explicitly set the end_date attribute value to null. Raw Text Data Block: ${cleanText}` }] }]
-              }, { timeout: 60000 });
+              }, { timeout: 45000 });
 
-              // 🔧 ΔΙΟΡΘΩΣΗ: Προσθήκη [0] για σωστή ανάγνωση του πρώτου candidate από το Array
-              if (geminiRes.data && geminiRes.data.candidates && geminiRes.data.candidates[0]) {
-                let rawText = geminiRes.data.candidates[0].content.parts[0].text.trim();
-                
-                if (rawText.startsWith("```json")) rawText = rawText.replace(/```json|```/g, "").trim();
-                else if (rawText.startsWith("```")) rawText = rawText.replace(/```/g, "").trim();
-
-                const parsedProducts = JSON.parse(rawText);
-                console.log(`-> 📈 Βρέθηκαν ${parsedProducts.length} live προϊόντα για το κατάστημα ${target.name}. Αποστολή στον Worker...`);
-
-                const injectResponse = await axios.post('https://workers.dev', {
-                  supermarket_name: target.name,
-                  products: parsedProducts
-                }, { timeout: 30000 });
-
-                console.log(`✅ Η βάση δεδομένων D1 ενημερώθηκε επιτυχώς για ${target.name}:`, JSON.stringify(injectResponse.data));
-              } else {
-                console.error(`❌ Άκυρη απάντηση από το Gemini API για την υπεραγορά ${target.name}`);
+              // Universal Deep Object Safe Check Parsing for Gemini Array formats
+              let rawText = null;
+              if (geminiRes.data && geminiRes.data.candidates && geminiRes.data.candidates.length > 0) {
+                const firstCandidate = geminiRes.data.candidates[0];
+                if (firstCandidate.content && firstCandidate.content.parts && firstCandidate.content.parts.length > 0) {
+                  rawText = firstCandidate.content.parts[0].text.trim();
+                }
               }
 
-            } catch (error) {
-              console.error(`❌ Σφάλμα στην υπεραγορά ${target.name}:`, error.message);
-              if (error.response) {
-                console.error("Λεπτομέρειες σφάλματος API:", JSON.stringify(error.response.data));
+              if (!rawText) {
+                console.error(`❌ Gemini structured response parsing failure for ${target.name}`);
+                await page.close();
+                continue;
               }
+
+              if (rawText.startsWith("```json")) rawText = rawText.replace(/```json|```/g, "").trim();
+              else if (rawText.startsWith("```")) rawText = rawText.replace(/```/g, "").trim();
+
+              const parsedProducts = JSON.parse(rawText);
+              console.log(`🚀 Found ${parsedProducts.length} live active items. Transmitting data block to Cloudflare...`);
+
+              // Post the cleaned, parsed data instantly straight to your worker database
+              const injectResponse = await axios.post('https://workers.dev', {
+                supermarket_name: target.name,
+                products: parsedProducts
+              }, { timeout: 15000 });
+
+              console.log(`✅ Database D1 updated successfully for ${target.name}:`, JSON.stringify(injectResponse.data));
+
+            } catch (err) {
+              console.error(`❌ Automation pipeline failure on store node ${target.name}:`, err.message);
+            } finally {
+              await page.close();
             }
           }
+
+          await browser.close();
+          console.log("🏁 All Cyprus supermarket pipelines processed completely.");
         }
 
-        processPipeline();
+        runAggregator();
         EOF
         
-        node run-scraper.js
+        node browser-scraper.js
