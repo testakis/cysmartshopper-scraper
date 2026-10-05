@@ -47,15 +47,17 @@ jobs:
             console.log(`🤖 Ανάγνωση δεδομένων για την υπεραγορά: ${target.name}...`);
             
             try {
-              const cacheUrl = `https://googleusercontent.com{encodeURIComponent(target.url)}&strip=1`;
+              // 🔧 ΣΩΣΤΗ ΣΥΝΤΑΞΗ: Χρήση του AllOrigins RAW endpoint για λήψη καθαρού HTML κειμένου
+              const proxyUrl = `https://allorigins.win{encodeURIComponent(target.url)}`;
               
-              const response = await axios.get(cacheUrl, {
+              const response = await axios.get(proxyUrl, {
                 headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
                 timeout: 30000
               });
 
-              if (!response.data) continue;
+              if (!response.data || typeof response.data !== 'string') continue;
 
+              // Καθαρισμός HTML κειμένου
               let cleanText = response.data
                 .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
                 .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
@@ -63,8 +65,8 @@ jobs:
                 .replace(/\s+/g, ' ')
                 .trim();
 
-              if (cleanText.length > 25000) {
-                cleanText = cleanText.substring(0, 25000);
+              if (cleanText.length > 23000) {
+                cleanText = cleanText.substring(0, 23000);
               }
 
               console.log(`🧠 Κλήση Gemini AI για: ${target.name}...`);
@@ -74,17 +76,17 @@ jobs:
                 contents: [{ parts: [{ text: `Analyze this Cyprus retail promotion text dataset for the brand location: ${target.name}. Extract existing items, categories, and prices. Output ONLY a clean raw JSON array data structural model format where every single child component item possesses these explicit object mapping keys: category, name, price, is_offer (1), is_leaflet (1 if from brochure, 0 otherwise), start_date (format template YYYY-MM-DD), end_date (format template YYYY-MM-DD). SYSTEM INSTRUCTION: If an active product item does not state an explicit promotion expiry target validation date window parameter within the text limits, you must explicitly set the end_date attribute value to null. Raw Text Data Block: ${cleanText}` }] }]
               }, { timeout: 45000 });
 
-              // 🔧 ΔΙΟΡΘΩΣΗ: Προσθήκη [0] για σωστή προσπέλαση του JSON Array της Google
+              // 🔧 ΑΛΑΝΘΑΣΤΗ ΠΛΟΗΓΗΣΗ: Πλοήγηση με δείκτη [0] στο Array των Candidates
               let rawText = null;
               if (geminiRes.data && geminiRes.data.candidates && Array.isArray(geminiRes.data.candidates) && geminiRes.data.candidates.length > 0) {
-                const firstCandidate = geminiRes.data.candidates[0]; // 🌟 ΕΔΩ ΜΠΗΚΕ ΤΟ!
+                const firstCandidate = geminiRes.data.candidates[0]; // 🌟 Διορθώθηκε με!
                 if (firstCandidate && firstCandidate.content && firstCandidate.content.parts && firstCandidate.content.parts.length > 0) {
                   rawText = firstCandidate.content.parts[0].text.trim();
                 }
               }
 
               if (!rawText) {
-                console.error(`❌ Αποτυχία ανάγνωσης JSON δομής για ${target.name}`);
+                console.error(`❌ Αποτυχία ανάλυσης από το Gemini για ${target.name}`);
                 continue;
               }
 
@@ -92,7 +94,7 @@ jobs:
               else if (rawText.startsWith("```")) rawText = rawText.replace(/```/g, "").trim();
 
               const parsedProducts = JSON.parse(rawText);
-              console.log(`🚀 Βρέθηκαν ${parsedProducts.length} προϊόντα για ${target.name}. Αποστολή στον Worker...`);
+              console.log(`🚀 Βρέθηκαν ${parsedProducts.length} live προϊόντα για ${target.name}. Αποστολή στον Worker...`);
 
               const injectResponse = await axios.post('https://workers.dev', {
                 supermarket_name: target.name,
