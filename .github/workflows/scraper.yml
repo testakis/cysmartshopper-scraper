@@ -13,16 +13,17 @@ jobs:
     - name: Checkout Repository Code
       uses: actions/checkout@v4
 
-    - name: Setup Node.js Environment
+    - name: Setup Node.js Environment (Node 24)
       uses: actions/setup-node@v4
       with:
-        node-version: 20
+        node-version: 24 # 🔧 Αναβάθμιση σε Node 24 για συμβατότητα με τους νέους runners
 
-    - name: Install Cloud Browser Automation Tools
-      run: |
-        npm install puppeteer axios
-        # 🔧 Η ΔΙΟΡΘΩΣΗ: Εγκατάσταση του Chrome Browser στον server του GitHub
-        npx puppeteer browsers install chrome
+    - name: Install Puppeteer and Axios
+      run: npm install puppeteer axios
+
+    # 🔧 Η ΛΥΣΗ: Χρήση του επίσημου εργαλείου της Google/Puppeteer που στήνει τον Chrome στο Linux αυτόματα
+    - name: Setup Official Google Chrome for Puppeteer
+      uses: puppeteer/puppeteer-actions/host-chrome@v1
 
     - name: Execute Live Multi-Source Automation Script
       env:
@@ -47,9 +48,17 @@ jobs:
             return;
           }
 
+          // 🔧 Launch Puppeteer χρησιμοποιώντας τον έτοιμο Chrome του συστήματος
           const browser = await puppeteer.launch({ 
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            executablePath: process.env.PUPPETEER_EXEC_PATH || null, // Χρησιμοποιεί τον έτοιμο Chrome
+            args: [
+              '--no-sandbox', 
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-accelerated-2d-canvas',
+              '--disable-gpu'
+            ]
           });
 
           for (const target of targets) {
@@ -60,8 +69,10 @@ jobs:
               await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
               await page.setViewport({ width: 1280, height: 800 });
               
+              // Φόρτωση σελίδας
               await page.goto(target.url, { waitUntil: 'networkidle2', timeout: 60000 });
 
+              // Παίρνουμε το καθαρό κείμενο
               const visibleText = await page.evaluate(() => document.body.innerText);
 
               let cleanText = visibleText.replace(/\s+/g, ' ').trim();
@@ -70,7 +81,7 @@ jobs:
               }
 
               if (cleanText.length < 200) {
-                console.warn(`⚠️ Empty content text for ${target.name}. Skipping target node.`);
+                console.warn(`⚠️ Empty content text for ${target.name}. Skipping.`);
                 await page.close();
                 continue;
               }
@@ -100,8 +111,9 @@ jobs:
               else if (rawText.startsWith("```")) rawText = rawText.replace(/```/g, "").trim();
 
               const parsedProducts = JSON.parse(rawText);
-              console.log(`🚀 Found ${parsedProducts.length} live active items. Transmitting data block to Cloudflare...`);
+              console.log(`🚀 Found ${parsedProducts.length} live active items. Transmitting to Cloudflare...`);
 
+              // Αποστολή στον Worker
               const injectResponse = await axios.post('https://workers.dev', {
                 supermarket_name: target.name,
                 products: parsedProducts
