@@ -2,8 +2,8 @@ name: Cyprus Supermarket Auto Browser Scraper
 
 on:
   schedule:
-    - cron: '0 */8 * * *'
-  workflow_dispatch:
+    - cron: '0 */8 * * *' # ⏱️ Automatically runs every 8 hours
+  workflow_dispatch:     # Allows you to trigger it manually anytime
 
 jobs:
   automated_browser_scrape:
@@ -16,21 +16,18 @@ jobs:
     - name: Setup Node.js Environment (Node 24)
       uses: actions/setup-node@v4
       with:
-        node-version: 24 # 🔧 Αναβάθμιση σε Node 24 για συμβατότητα με τους νέους runners
+        node-version: 24
 
-    - name: Install Puppeteer and Axios
-      run: npm install puppeteer axios
-
-    # 🔧 Η ΛΥΣΗ: Χρήση του επίσημου εργαλείου της Google/Puppeteer που στήνει τον Chrome στο Linux αυτόματα
-    - name: Setup Official Google Chrome for Puppeteer
-      uses: puppeteer/puppeteer-actions/host-chrome@v1
+    # 🔧 FIX: We install puppeteer-core (lightweight) alongside axios to use the system Chrome directly
+    - name: Install Puppeteer Core and Axios
+      run: npm install puppeteer-core axios
 
     - name: Execute Live Multi-Source Automation Script
       env:
         GEMINI_KEY: \${{ secrets.GEMINI_KEY }}
       run: |
         cat << 'EOF' > browser-scraper.js
-        const puppeteer = require('puppeteer');
+        const puppeteer = require('puppeteer-core');
         const axios = require('axios');
 
         const targets = [
@@ -48,31 +45,31 @@ jobs:
             return;
           }
 
-          // 🔧 Launch Puppeteer χρησιμοποιώντας τον έτοιμο Chrome του συστήματος
+          // 🔧 REVOLUTIONARY FIX: Direct connection linking straight to Ubuntu's native Chrome location
           const browser = await puppeteer.launch({ 
             headless: true,
-            executablePath: process.env.PUPPETEER_EXEC_PATH || null, // Χρησιμοποιεί τον έτοιμο Chrome
+            executablePath: '/usr/bin/google-chrome', // Official path of pre-installed Chrome on GitHub Actions
             args: [
               '--no-sandbox', 
               '--disable-setuid-sandbox',
               '--disable-dev-shm-usage',
-              '--disable-accelerated-2d-canvas',
-              '--disable-gpu'
+              '--disable-gpu',
+              '--single-process'
             ]
           });
 
           for (const target of targets) {
-            console.log(`🤖 Opening real cloud browser for: ${target.name}...`);
+            console.log(`🤖 Opening native runner browser for: ${target.name}...`);
             const page = await browser.newPage();
             
             try {
               await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
               await page.setViewport({ width: 1280, height: 800 });
               
-              // Φόρτωση σελίδας
+              // Load the target supermarket website page safely
               await page.goto(target.url, { waitUntil: 'networkidle2', timeout: 60000 });
 
-              // Παίρνουμε το καθαρό κείμενο
+              // Extract the plain text elements out of the page layout tree
               const visibleText = await page.evaluate(() => document.body.innerText);
 
               let cleanText = visibleText.replace(/\s+/g, ' ').trim();
@@ -80,13 +77,13 @@ jobs:
                 cleanText = cleanText.substring(0, 25000);
               }
 
-              if (cleanText.length < 200) {
-                console.warn(`⚠️ Empty content text for ${target.name}. Skipping.`);
+              if (cleanText.length < 200 || cleanText.includes("error code:")) {
+                console.warn(`⚠️ Supermarket ${target.name} returned a firewall/empty frame. Skipping.`);
                 await page.close();
                 continue;
               }
 
-              console.log(`🧠 Processing live content dataset through Gemini AI for: ${target.name}...`);
+              console.log(`🧠 Processing live text through Gemini AI for: ${target.name}...`);
               const geminiEndpoint = `https://googleapis.com{geminiKey}`;
               
               const geminiRes = await axios.post(geminiEndpoint, {
@@ -97,7 +94,7 @@ jobs:
               if (geminiRes.data && geminiRes.data.candidates && geminiRes.data.candidates.length > 0) {
                 const firstCandidate = geminiRes.data.candidates[0];
                 if (firstCandidate.content && firstCandidate.content.parts && firstCandidate.content.parts.length > 0) {
-                  rawText = firstCandidate.content.parts[0].text.trim();
+                  rawText = firstCandidate.content.parts.text.trim();
                 }
               }
 
@@ -111,9 +108,9 @@ jobs:
               else if (rawText.startsWith("```")) rawText = rawText.replace(/```/g, "").trim();
 
               const parsedProducts = JSON.parse(rawText);
-              console.log(`🚀 Found ${parsedProducts.length} live active items. Transmitting to Cloudflare...`);
+              console.log(`🚀 Found ${parsedProducts.length} live active items. Transmitting data block to Cloudflare...`);
 
-              // Αποστολή στον Worker
+              // Push the clean product arrays to your Worker database
               const injectResponse = await axios.post('https://workers.dev', {
                 supermarket_name: target.name,
                 products: parsedProducts
