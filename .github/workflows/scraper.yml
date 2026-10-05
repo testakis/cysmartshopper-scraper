@@ -2,8 +2,8 @@ name: Cyprus Supermarket Auto Text Scraper
 
 on:
   schedule:
-    - cron: '0 */8 * * *' # Τρέχει αυτόματα κάθε 8 ώρες
-  workflow_dispatch:     # Σας επιτρέπει να το τρέχετε χειροκίνητα
+    - cron: '0 */8 * * *'
+  workflow_dispatch:
 
 jobs:
   automated_text_scrape:
@@ -47,7 +47,6 @@ jobs:
             console.log(`🤖 Ανάγνωση δεδομένων για την υπεραγορά: ${target.name}...`);
             
             try {
-              // Διαβάζουμε τη σελίδα μέσω του Google Cache Text-Only Endpoint για να μην τρώμε WAF blocks
               const cacheUrl = `https://googleusercontent.com{encodeURIComponent(target.url)}&strip=1`;
               
               const response = await axios.get(cacheUrl, {
@@ -55,12 +54,8 @@ jobs:
                 timeout: 30000
               });
 
-              if (!response.data) {
-                console.warn(`⚠️ Άδεια απάντηση για ${target.name}`);
-                continue;
-              }
+              if (!response.data) continue;
 
-              // Καθαρισμός HTML κειμένου
               let cleanText = response.data
                 .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
                 .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
@@ -79,16 +74,17 @@ jobs:
                 contents: [{ parts: [{ text: `Analyze this Cyprus retail promotion text dataset for the brand location: ${target.name}. Extract existing items, categories, and prices. Output ONLY a clean raw JSON array data structural model format where every single child component item possesses these explicit object mapping keys: category, name, price, is_offer (1), is_leaflet (1 if from brochure, 0 otherwise), start_date (format template YYYY-MM-DD), end_date (format template YYYY-MM-DD). SYSTEM INSTRUCTION: If an active product item does not state an explicit promotion expiry target validation date window parameter within the text limits, you must explicitly set the end_date attribute value to null. Raw Text Data Block: ${cleanText}` }] }]
               }, { timeout: 45000 });
 
+              // 🔧 ΔΙΟΡΘΩΣΗ: Προσθήκη [0] για σωστή προσπέλαση του JSON Array της Google
               let rawText = null;
-              if (geminiRes.data && geminiRes.data.candidates && geminiRes.data.candidates.length > 0) {
-                const firstCandidate = geminiRes.data.candidates[0];
-                if (firstCandidate.content && firstCandidate.content.parts && firstCandidate.content.parts.length > 0) {
+              if (geminiRes.data && geminiRes.data.candidates && Array.isArray(geminiRes.data.candidates) && geminiRes.data.candidates.length > 0) {
+                const firstCandidate = geminiRes.data.candidates[0]; // 🌟 ΕΔΩ ΜΠΗΚΕ ΤΟ!
+                if (firstCandidate && firstCandidate.content && firstCandidate.content.parts && firstCandidate.content.parts.length > 0) {
                   rawText = firstCandidate.content.parts[0].text.trim();
                 }
               }
 
               if (!rawText) {
-                console.error(`❌ Αποτυχία ανάλυσης από το Gemini για ${target.name}`);
+                console.error(`❌ Αποτυχία ανάγνωσης JSON δομής για ${target.name}`);
                 continue;
               }
 
@@ -96,7 +92,7 @@ jobs:
               else if (rawText.startsWith("```")) rawText = rawText.replace(/```/g, "").trim();
 
               const parsedProducts = JSON.parse(rawText);
-              console.log(`🚀 Βρέθηκαν ${parsedProducts.length} προϊόντα. Αποστολή στον Worker...`);
+              console.log(`🚀 Βρέθηκαν ${parsedProducts.length} προϊόντα για ${target.name}. Αποστολή στον Worker...`);
 
               const injectResponse = await axios.post('https://workers.dev', {
                 supermarket_name: target.name,
